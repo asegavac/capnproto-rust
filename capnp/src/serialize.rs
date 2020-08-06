@@ -56,6 +56,31 @@ impl <'a> message::ReaderSegments for SliceSegments<'a> {
     }
 }
 
+/// Segments read from a referenced flat slice of words.
+pub struct RefSegments<'a, D: AsRef<[u8]>> {
+    words: D,
+
+    // Each pair represents a segment inside of `words`.
+    // (starting index (in words), ending index (in words))
+    segment_indices : Vec<(usize, usize)>,
+    offset: usize,
+}
+
+impl <'a> message::ReaderSegments for SliceSegments<'a> {
+    fn get_segment<'b>(&'b self, id: u32) -> Option<&'b [u8]> {
+        if id < self.segment_indices.len() as u32 {
+            let (a, b) = self.segment_indices[id as usize];
+            Some(&self.words[(a * BYTES_PER_WORD + offset)..(b * BYTES_PER_WORD + offset)])
+        } else {
+            None
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.segment_indices.len()
+    }
+}
+
 /// Reads a serialized message (including a segment table) from a flat slice of bytes, without copying.
 /// The slice is allowed to extend beyond the end of the message. On success, updates `slice` to point
 /// to the remaining bytes beyond the end of the message.
@@ -83,6 +108,33 @@ pub fn read_message_from_flat_slice<'a>(slice: &mut &'a [u8],
     } else {
         *slice = &body_bytes[(num_words * BYTES_PER_WORD)..];
         Ok(message::Reader::new(segment_lengths_builder.into_slice_segments(body_bytes), options))
+    }
+}
+
+/// Reads a serialized message (including a segment table) from a flat slice of bytes, without copying.
+/// The slice is allowed to extend beyond the end of the message. On success, returns length of slice read.
+/// This version does not protect against write amplification, and is intended for boxed long lived (mmap) slices.
+///
+/// ALIGNMENT: If the "unaligned" feature is enabled, then there are no alignment requirements on `slice`.
+/// Otherwise, `slice` must be 8-byte aligned (attempts to read the message will trigger errors).
+pub fn read_message_consuming_flat_slice<D: AsRef<[u8]>>(slice: D,
+                                        options: message::ReaderOptions)
+                                        -> Result<(message::Reader<RefSegments>, usize)> {
+    let mut bytes = *slice;
+    let orig_bytes_len = bytes.len();
+    let segment_lengths_builder = match read_segment_table(&mut bytes, options)? {
+        Some(b) => b,
+        None => return Err(Error::failed("empty slice".to_string())),
+    };
+    let segment_table_bytes_len = orig_bytes_len - bytes.len();
+    assert_eq!(segment_table_bytes_len % BYTES_PER_WORD, 0);
+    let num_words = segment_lengths_builder.total_words();
+    if  num_words > ((slice.len() - segment_table_bytes_len) / BYTES_PER_WORD) {
+        Err(Error::failed(
+            format!("Message ends prematurely. Header claimed {} words, but message only has {} words.",
+                    num_words, (slice.len() - segment_table_bytes_len) / BYTES_PER_WORD)))
+    } else {
+        Ok(message::Reader::new_safe(segment_lengths_builder.into_ref_segments(segment_table_bytes_len, slice), options), num_words * BYTES_PER_WORD)
     }
 }
 
@@ -162,6 +214,16 @@ impl SegmentLengthsBuilder {
     pub fn into_slice_segments(self, slice: &[u8]) -> SliceSegments {
         assert!(self.total_words * BYTES_PER_WORD <= slice.len());
         SliceSegments {
+            words: slice,
+            segment_indices: self.segment_indices,
+        }
+    }
+
+    /// Constructs a `SliceSegments`, where the passed-in slice is assumed to contain the segments.
+    pub fn into_ref_segments<D: AsRef<[u8]>>(self, offset: usize, slice: D) -> RefSegments {
+        assert!(self.total_words * BYTES_PER_WORD <= slice.len());
+        RefSegments {
+            offset: offset,
             words: slice,
             segment_indices: self.segment_indices,
         }
