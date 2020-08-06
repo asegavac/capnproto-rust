@@ -138,6 +138,77 @@ impl <S> ReaderArena for ReaderArenaImpl<S> where S: ReaderSegments {
     }
 }
 
+pub struct ReaderArenaSafeImpl<S> {
+    segments: S,
+}
+
+impl <S> ReaderArenaSafeImpl <S> where S: ReaderSegments {
+    pub fn new(segments: S,
+               options: message::ReaderOptions)
+               -> Self
+    {
+        ReaderArenaSafeImpl {
+            segments: segments,
+        }
+    }
+
+    pub fn into_segments(self) -> S {
+        self.segments
+    }
+}
+
+impl <S> ReaderArena for ReaderArenaSafeImpl<S> where S: ReaderSegments {
+    fn get_segment<'a>(&'a self, id: u32) -> Result<(*const u8, u32)> {
+        match self.segments.get_segment(id) {
+            Some(seg) => {
+                #[cfg(not(feature = "unaligned"))]
+                {
+                    if seg.as_ptr() as usize % BYTES_PER_WORD != 0 {
+                        return Err(Error::failed(
+                            format!("Detected unaligned segment. You must either ensure all of your \
+                                     segments are 8-byte aligned, or you must enable the \"unaligned\" \
+                                     feature in the capnp crate")))
+                    }
+                }
+
+                Ok((seg.as_ptr(), (seg.len() / BYTES_PER_WORD) as u32))
+            }
+            None => Err(Error::failed(format!("Invalid segment id: {}", id))),
+        }
+    }
+
+    fn check_offset(&self, segment_id: u32, start: *const u8, offset_in_words: i32) -> Result<*const u8> {
+        let (segment_start, segment_len) = self.get_segment(segment_id)?;
+        let this_start: usize = segment_start as usize;
+        let this_size: usize = segment_len as usize * BYTES_PER_WORD;
+        let offset: i64 = offset_in_words as i64 * BYTES_PER_WORD as i64;
+        let start_idx = start as usize;
+        if start_idx < this_start || ((start_idx - this_start) as i64 + offset) as usize > this_size {
+            Err(Error::failed(format!("message contained out-of-bounds pointer")))
+        } else {
+            unsafe { Ok(start.offset(offset as isize)) }
+        }
+    }
+
+    fn contains_interval(&self, id: u32, start: *const u8, size_in_words: usize) -> Result<()> {
+        let (segment_start, segment_len) = self.get_segment(id)?;
+        let this_start: usize = segment_start as usize;
+        let this_size: usize = segment_len as usize * BYTES_PER_WORD;
+        let start = start as usize;
+        let size = size_in_words * BYTES_PER_WORD;
+
+        if !(start >= this_start && start - this_start + size <= this_size) {
+            Err(Error::failed(format!("message contained out-of-bounds pointer")))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn amplified_read(&self, virtual_amount: u64) -> Result<()> {
+        Ok(())
+    }
+}
+
 pub trait BuilderArena: ReaderArena {
     // These methods all take an immutable &self because otherwise a StructBuilder<'a>
     // would need a `&'a mut BuilderArena` and `StructBuilder::borrow()` would
@@ -348,4 +419,3 @@ impl BuilderArena for NullArena {
         self
     }
 }
-

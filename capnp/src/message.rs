@@ -25,7 +25,7 @@ use alloc::vec::Vec;
 use core::convert::From;
 
 use crate::any_pointer;
-use crate::private::arena::{BuilderArenaImpl, ReaderArenaImpl, BuilderArena, ReaderArena};
+use crate::private::arena::{BuilderArenaImpl, ReaderArena, ReaderArenaImpl, ReaderArenaSafeImpl, BuilderArena, ReaderArena};
 use crate::private::layout;
 use crate::private::units::BYTES_PER_WORD;
 use crate::traits::{FromPointerReader, FromPointerBuilder, SetPointerBuilder, Owned};
@@ -151,8 +151,8 @@ impl <'b> ReaderSegments for [&'b [u8]] {
 }
 
 /// A container used to read a message.
-pub struct Reader<S> where S: ReaderSegments {
-    arena: ReaderArenaImpl<S>,
+pub struct Reader<S> where S: ReaderArena {
+    arena: S,
     nesting_limit: i32,
 }
 
@@ -160,6 +160,13 @@ impl <S> Reader<S> where S: ReaderSegments {
     pub fn new(segments: S, options: ReaderOptions) -> Self {
         Reader {
             arena: ReaderArenaImpl::new(segments, options),
+            nesting_limit: options.nesting_limit,
+        }
+    }
+
+    pub fn new_safe(segments: S, options: ReaderOptions) -> Self {
+        Reader {
+            arena: ReaderArenaSafeImpl::new(segments, options),
             nesting_limit: options.nesting_limit,
         }
     }
