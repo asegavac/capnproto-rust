@@ -156,7 +156,7 @@ pub struct Reader<S> where S: ReaderArena {
     nesting_limit: i32,
 }
 
-impl <S> Reader<S> where S: ReaderSegments {
+impl <S> Reader<S> where S: ReaderArena {
     pub fn new(segments: S, options: ReaderOptions) -> Self {
         Reader {
             arena: ReaderArenaImpl::new(segments, options),
