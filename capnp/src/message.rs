@@ -25,7 +25,7 @@ use alloc::vec::Vec;
 use core::convert::From;
 
 use crate::any_pointer;
-use crate::private::arena::{BuilderArenaImpl, ReaderArena, ReaderArenaImpl, ReaderArenaSafeImpl, BuilderArena, ReaderArena};
+use crate::private::arena::{BuilderArenaImpl, ReaderArena, ReaderArenaImpl, ReaderArenaSafeImpl, BuilderArena};
 use crate::private::layout;
 use crate::private::units::BYTES_PER_WORD;
 use crate::traits::{FromPointerReader, FromPointerBuilder, SetPointerBuilder, Owned};

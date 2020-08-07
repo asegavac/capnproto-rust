@@ -70,7 +70,7 @@ impl <'a> message::ReaderSegments for SliceSegments<'a> {
     fn get_segment<'b>(&'b self, id: u32) -> Option<&'b [u8]> {
         if id < self.segment_indices.len() as u32 {
             let (a, b) = self.segment_indices[id as usize];
-            Some(&self.words[(a * BYTES_PER_WORD + offset)..(b * BYTES_PER_WORD + offset)])
+            Some(&self.words[(a * BYTES_PER_WORD + self.offset)..(b * BYTES_PER_WORD + self.offset)])
         } else {
             None
         }
@@ -117,9 +117,9 @@ pub fn read_message_from_flat_slice<'a>(slice: &mut &'a [u8],
 ///
 /// ALIGNMENT: If the "unaligned" feature is enabled, then there are no alignment requirements on `slice`.
 /// Otherwise, `slice` must be 8-byte aligned (attempts to read the message will trigger errors).
-pub fn read_message_consuming_flat_slice<D: AsRef<[u8]>>(slice: D,
+pub fn read_message_consuming_flat_slice<'a, D: AsRef<[u8]>>(slice: D,
                                         options: message::ReaderOptions)
-                                        -> Result<(message::Reader<RefSegments>, usize)> {
+                                        -> Result<(message::Reader<RefSegments<'a>>, usize)> {
     let mut bytes = *slice;
     let orig_bytes_len = bytes.len();
     let segment_lengths_builder = match read_segment_table(&mut bytes, options)? {
@@ -220,7 +220,7 @@ impl SegmentLengthsBuilder {
     }
 
     /// Constructs a `SliceSegments`, where the passed-in slice is assumed to contain the segments.
-    pub fn into_ref_segments<D: AsRef<[u8]>>(self, offset: usize, slice: D) -> RefSegments {
+    pub fn into_ref_segments<'a, D: AsRef<[u8]>>(self, offset: usize, slice: D) -> RefSegments<'a> {
         assert!(self.total_words * BYTES_PER_WORD <= slice.len());
         RefSegments {
             offset: offset,
