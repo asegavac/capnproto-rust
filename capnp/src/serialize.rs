@@ -66,7 +66,7 @@ pub struct RefSegments<'a, D: AsRef<[u8]>> {
     offset: usize,
 }
 
-impl <'a> message::ReaderSegments for SliceSegments<'a> {
+impl <'a> message::ReaderSegments for RefSegments<'a> {
     fn get_segment<'b>(&'b self, id: u32) -> Option<&'b [u8]> {
         if id < self.segment_indices.len() as u32 {
             let (a, b) = self.segment_indices[id as usize];
