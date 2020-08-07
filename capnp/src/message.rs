@@ -109,7 +109,7 @@ pub trait ReaderSegments {
     }
 }
 
-impl <S> ReaderSegments for &S where S: ReaderSegments {
+impl <S> ReaderSegments for &S where S: ReaderArena {
     fn get_segment<'a>(&'a self, idx: u32) -> Option<&'a [u8]> {
         (**self).get_segment(idx)
     }
@@ -232,14 +232,14 @@ impl <S> Reader<S> where S: ReaderArena {
 
 /// A message reader whose value is known to be of type `T`.
 pub struct TypedReader<S, T>
-    where S: ReaderSegments,
+    where S: ReaderArena,
           T: for<'a> Owned<'a> {
     marker: ::core::marker::PhantomData<T>,
     message: Reader<S>,
 }
 
 impl <S, T> TypedReader<S, T>
-    where S: ReaderSegments,
+    where S: ReaderArena,
           T : for<'a> Owned<'a> {
 
     pub fn new(message: Reader<S>) -> Self {
@@ -259,7 +259,7 @@ impl <S, T> TypedReader<S, T>
 }
 
 impl <S, T> From<Reader<S>> for TypedReader<S, T>
-    where S: ReaderSegments,
+    where S: ReaderArena,
           T: for<'a> Owned<'a> {
 
     fn from(message: Reader<S>) -> TypedReader<S, T> {
@@ -306,7 +306,7 @@ unsafe impl <A> Send for Builder<A> where A: Send + Allocator {}
 
 fn _assert_kinds() {
     fn _assert_send<T: Send>() {}
-    fn _assert_reader<S: ReaderSegments + Send>() {
+    fn _assert_reader<S: ReaderArena + Send>() {
         _assert_send::<Reader<S>>();
     }
     fn _assert_builder<A: Allocator + Send>() {
