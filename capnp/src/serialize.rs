@@ -119,7 +119,7 @@ pub fn read_message_from_flat_slice<'a>(slice: &mut &'a [u8],
 /// Otherwise, `slice` must be 8-byte aligned (attempts to read the message will trigger errors).
 pub fn read_message_consuming_flat_slice<'a, D: AsRef<[u8]>>(slice: D,
                                         options: message::ReaderOptions)
-                                        -> Result<(message::Reader<RefSegments<'a>>, usize)> {
+                                        -> Result<(message::Reader<RefSegments<'a, D>>, usize)> {
     let mut bytes = *slice;
     let orig_bytes_len = bytes.len();
     let segment_lengths_builder = match read_segment_table(&mut bytes, options)? {
@@ -220,7 +220,7 @@ impl SegmentLengthsBuilder {
     }
 
     /// Constructs a `SliceSegments`, where the passed-in slice is assumed to contain the segments.
-    pub fn into_ref_segments<'a, D: AsRef<[u8]>>(self, offset: usize, slice: D) -> RefSegments<'a> {
+    pub fn into_ref_segments<'a, D: AsRef<[u8]>>(self, offset: usize, slice: D) -> RefSegments<'a, D> {
         assert!(self.total_words * BYTES_PER_WORD <= slice.len());
         RefSegments {
             offset: offset,
