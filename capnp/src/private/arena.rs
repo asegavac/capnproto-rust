@@ -66,7 +66,7 @@ pub trait ReaderArena {
 
 pub struct ReaderArenaImpl<S> {
     segments: S,
-    read_limiter: ReadLimiter,
+    read_limiter: Option<ReadLimiter>,
 }
 
 impl <S> ReaderArenaImpl <S> where S: ReaderSegments {
@@ -74,10 +74,20 @@ impl <S> ReaderArenaImpl <S> where S: ReaderSegments {
                options: message::ReaderOptions)
                -> Self
     {
-        let limiter = ReadLimiter::new(options.traversal_limit_in_words);
-        ReaderArenaImpl {
-            segments: segments,
-            read_limiter: limiter,
+        match options.traversal_limit_in_words {
+            Some(limit) => {
+                let limiter = ReadLimiter::new(limit);
+                ReaderArenaImpl {
+                    segments: segments,
+                    read_limiter: Some(limiter),
+                }
+            },
+            None => {
+                ReaderArenaImpl {
+                    segments: segments,
+                    read_limiter: None,
+                }
+            }
         }
     }
 
@@ -129,12 +139,26 @@ impl <S> ReaderArena for ReaderArenaImpl<S> where S: ReaderSegments {
         if !(start >= this_start && start - this_start + size <= this_size) {
             Err(Error::failed(format!("message contained out-of-bounds pointer")))
         } else {
-            self.read_limiter.can_read(size_in_words as u64)
+            match self.read_limiter {
+                Some(limiter) => {
+                    limiter.can_read(size_in_words as u64)
+                },
+                None => {
+                    Ok(())
+                }
+            }
         }
     }
 
     fn amplified_read(&self, virtual_amount: u64) -> Result<()> {
-        self.read_limiter.can_read(virtual_amount)
+        match self.read_limiter {
+            Some(limiter) => {
+                limiter.can_read(virtual_amount)
+            },
+            None => {
+                Ok(())
+            }
+        }
     }
 }
 
@@ -348,4 +372,3 @@ impl BuilderArena for NullArena {
         self
     }
 }
-
