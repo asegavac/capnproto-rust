@@ -139,7 +139,7 @@ impl <S> ReaderArena for ReaderArenaImpl<S> where S: ReaderSegments {
         if !(start >= this_start && start - this_start + size <= this_size) {
             Err(Error::failed(format!("message contained out-of-bounds pointer")))
         } else {
-            match self.read_limiter {
+            match &self.read_limiter {
                 Some(limiter) => {
                     limiter.can_read(size_in_words as u64)
                 },
@@ -151,7 +151,7 @@ impl <S> ReaderArena for ReaderArenaImpl<S> where S: ReaderSegments {
     }
 
     fn amplified_read(&self, virtual_amount: u64) -> Result<()> {
-        match self.read_limiter {
+        match &self.read_limiter {
             Some(limiter) => {
                 limiter.can_read(virtual_amount)
             },
